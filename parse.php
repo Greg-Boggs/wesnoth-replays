@@ -11,7 +11,8 @@ $teams = [];
 $losing_team = '';
 $factions = [];
 $filenames = [];
-$i = 0;
+$skipped = false;
+$i = 1;
 
 $dayNum = date('d');
 $base_url = "http://replays.wesnoth.org/1.14/2020/03/$dayNum/";
@@ -24,18 +25,27 @@ foreach($matches as $filename) {
 
     $info = pathinfo($filename[1]);
     if (isset($info['extension']) && $info['extension'] == 'bz2') {
-        $i++;
+        echo "Reading game $i for details...\n";
 
-        // stop at 4 replay files.
+        // stop at 3 replay files.
         if ($i > 3) {
             exit;
         }
         $fh = bzopen($base_url . $filename[1], "r");
         while ($line = fgets($fh)) {
-            if (strpos($line, 'mp_use_map_settings=no') !== FALSE) {
 
-                //Skip games that don't use map settings
-                continue;
+            //Skip games that don't use map settings
+            if (strpos($line, 'mp_use_map_settings=no') !== FALSE) {
+                echo "Skipping map that does not use map settings.\n";
+                $skipped = true;
+                break;
+            }
+
+            //Skip games that have AI players
+            if (strpos($line, 'controller="ai"') !== FALSE) {
+                echo "Skipping game with an AI player.\n";
+                $skipped = true;
+                break;
             }
 
             // Finished processing player data so clear the player.
@@ -96,22 +106,24 @@ foreach($matches as $filename) {
             }
         }
 
-        if ($loser) {
-            $losing_team = $teams[$loser];
-            $losers[] = $loser;
-        }
+        // Output stats if not skipped.
+        if (!$skipped) {
+            if ($loser) {
+                $losing_team = $teams[$loser];
+                $losers[] = $loser;
+            }
 
-        foreach ($teams as $player => $team) {
-            if ($team == $losing_team) {
-                $losers[] = $player;
-                echo "$player lost as $factions[$player]!\n";
-            } else {
-                $winners[] = $player;
-                echo "$player as $factions[$player]!\n";
+            foreach ($teams as $player => $team) {
+                if ($team == $losing_team) {
+                    $losers[] = $player;
+                    echo "$player lost as $factions[$player]!\n";
+                } else {
+                    $winners[] = $player;
+                    echo "$player as $factions[$player]!\n";
+                }
             }
         }
-
-
+        $i++;
         bzclose($fh);
     }
 }
